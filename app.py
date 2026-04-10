@@ -93,17 +93,25 @@ def chat():
     if not mensaje:
         return jsonify({"error": "Mensaje vacío"}), 400
 
-    # Cargar historial persistente (últimos 40 mensajes)
-    historial = cargar_historial(session_id, limite=40)
-    resultado = responder(mensaje, historial)
+    try:
+        # Cargar historial persistente (últimos 40 mensajes)
+        historial = cargar_historial(session_id, limite=40)
+        resultado = responder(mensaje, historial)
 
-    # Guardar la interacción en SQLite
-    guardar_mensajes(session_id, [
-        {"role": "user",      "content": mensaje},
-        {"role": "assistant", "content": resultado["respuesta"]}
-    ])
+        # Guardar la interacción en SQLite
+        guardar_mensajes(session_id, [
+            {"role": "user",      "content": mensaje},
+            {"role": "assistant", "content": resultado["respuesta"]}
+        ])
 
-    return jsonify(resultado)
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({
+            "agente": "sistema",
+            "nombre_agente": "Sistema",
+            "respuesta": f"Error interno: {str(e)}",
+            "modo": "error"
+        }), 500
 
 @app.route('/health')
 def health():
