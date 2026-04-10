@@ -38,6 +38,9 @@ HTML_CHAT = """
         .msg.bot .agente-tag { color: #6c63ff; }
         .msg.bot-paralelo .agente-tag { color: #90ee90; }
         .msg pre { background: #0f0f1a; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+        .netlify-banner { background: #0a2a1a; border: 1px solid #00c851; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #00c851; margin-top: 8px; }
+        .netlify-banner a { color: #00c851; text-decoration: underline; }
+        .netlify-error { background: #2a0a0a; border: 1px solid #ff4444; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #ff4444; margin-top: 8px; }
         .aprobacion-banner { background: #2a1a0a; border: 1px solid #ff9800; border-radius: 10px; padding: 10px 14px; font-size: 12px; color: #ff9800; margin-top: 8px; }
         .typing { font-size: 12px; color: #555; padding: 0 24px 8px; font-style: italic; }
         .input-area { padding: 16px 24px; border-top: 1px solid #2a2a4a; display: flex; gap: 8px; }
@@ -62,6 +65,7 @@ HTML_CHAT = """
         <span class="agent-pill" onclick="setAgente('ventas', this)">Ventas</span>
         <span class="agent-pill" onclick="setAgente('desarrollador', this)">Desarrollador</span>
         <span class="agent-pill" onclick="setAgente('soporte', this)">Soporte</span>
+        <span class="agent-pill" onclick="setAgente('disenador', this)">Diseñador</span>
     </div>
     <div class="messages" id="messages">
         <div class="msg bot">
@@ -111,9 +115,11 @@ HTML_CHAT = """
 
         if (data.respuesta_dev) {
             agregarMensaje(data.respuesta_dev, 'bot', data.nombre_dev);
+            mostrarBannersNetlify(data);
             agregarMensaje(data.respuesta_diseno, 'bot-paralelo', data.nombre_diseno);
         } else {
             agregarMensaje(data.respuesta, 'bot', data.nombre_agente);
+            mostrarBannersNetlify(data);
         }
 
         if (data.telegram_enviado) {
@@ -124,10 +130,26 @@ HTML_CHAT = """
         }
     }
 
+    function mostrarBannersNetlify(data) {
+        const lastMsg = document.getElementById('messages').lastChild;
+        if (data.netlify_url) {
+            const banner = document.createElement('div');
+            banner.className = 'netlify-banner';
+            banner.innerHTML = '🚀 <b>Deployado en Netlify:</b> <a href="' + data.netlify_url + '" target="_blank">' + data.netlify_url + '</a>';
+            lastMsg.appendChild(banner);
+        }
+        if (data.netlify_error) {
+            const banner = document.createElement('div');
+            banner.className = 'netlify-error';
+            banner.innerHTML = '⚠️ <b>Deploy fallido:</b> ' + data.netlify_error;
+            lastMsg.appendChild(banner);
+        }
+    }
+
     function agregarMensaje(texto, tipo, agente) {
         const div = document.createElement('div');
         div.className = 'msg ' + tipo;
-        const tag = agente ? `<div class="agente-tag">${agente}</div>` : '';
+        const tag = agente ? '<div class="agente-tag">' + agente + '</div>' : '';
         const textoFormateado = texto.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>').replace(/\n/g, '<br>');
         div.innerHTML = tag + textoFormateado;
         document.getElementById('messages').appendChild(div);
