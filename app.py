@@ -65,12 +65,12 @@ HTML_CHAT = """
         <p>Tu equipo de IA trabajando para vos</p>
     </div>
     <div class="agents-bar">
-        <span class="agent-pill active" onclick="setAgente('auto', this)">Auto</span>
-        <span class="agent-pill" onclick="setAgente('asistente', this)">Asistente</span>
-        <span class="agent-pill" onclick="setAgente('marketing', this)">Marketing</span>
-        <span class="agent-pill" onclick="setAgente('ventas', this)">Ventas</span>
-        <span class="agent-pill" onclick="setAgente('desarrollador', this)">Desarrollador</span>
-        <span class="agent-pill" onclick="setAgente('soporte', this)">Soporte</span>
+        <span class="agent-pill active" data-agente="auto">Auto</span>
+        <span class="agent-pill" data-agente="asistente">Asistente</span>
+        <span class="agent-pill" data-agente="marketing">Marketing</span>
+        <span class="agent-pill" data-agente="ventas">Ventas</span>
+        <span class="agent-pill" data-agente="desarrollador">Desarrollador</span>
+        <span class="agent-pill" data-agente="soporte">Soporte</span>
     </div>
     <div class="messages" id="messages">
         <div class="msg bot">
@@ -81,83 +81,95 @@ HTML_CHAT = """
     <div class="typing" id="typing"></div>
     <div class="modo-paralelo" id="modo-label"></div>
     <div class="input-area">
-        <input type="text" id="input" placeholder="Decile algo a tu equipo..." onkeypress="if(event.key==='Enter') enviar()"/>
-        <button id="btn-enviar" onclick="enviar()">Enviar</button>
+        <input type="text" id="input" placeholder="Decile algo a tu equipo..."/>
+        <button id="btn-enviar">Enviar</button>
     </div>
 </div>
 <script>
-    const sessionId = Math.random().toString(36).substr(2, 9);
-    let agenteSeleccionado = 'auto';
-    let enviando = false;
+document.addEventListener('DOMContentLoaded', function() {
+    var sessionId = Math.random().toString(36).substr(2, 9);
+    var agenteSeleccionado = 'auto';
+    var enviando = false;
 
-    function setAgente(agente, el) {
-        agenteSeleccionado = agente;
-        document.querySelectorAll('.agent-pill').forEach(p => p.classList.remove('active'));
-        el.classList.add('active');
-        const label = document.getElementById('modo-label');
-        label.textContent = agente === 'desarrollador' ? '⚡ Modo paralelo activo: Desarrollador + Diseñador trabajarán juntos' : '';
-    }
+    document.querySelectorAll('.agent-pill').forEach(function(pill) {
+        pill.addEventListener('click', function() {
+            var agente = this.getAttribute('data-agente');
+            agenteSeleccionado = agente;
+            document.querySelectorAll('.agent-pill').forEach(function(p) { p.classList.remove('active'); });
+            this.classList.add('active');
+            document.getElementById('modo-label').textContent = agente === 'desarrollador' ? 'Modo paralelo: Desarrollador + Disenador' : '';
+        });
+    });
 
-    // FIX 1: try/catch completo + deshabilitar botón mientras espera
+    document.getElementById('input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') enviar();
+    });
+
+    document.getElementById('btn-enviar').addEventListener('click', enviar);
+
     async function enviar() {
         if (enviando) return;
-        const input = document.getElementById('input');
-        const btn = document.getElementById('btn-enviar');
-        const msg = input.value.trim();
+        var inputEl = document.getElementById('input');
+        var btn = document.getElementById('btn-enviar');
+        var msg = inputEl.value.trim();
         if (!msg) return;
 
         enviando = true;
         btn.disabled = true;
-        input.value = '';
+        inputEl.value = '';
         agregarMensaje(msg, 'user', '');
-        document.getElementById('typing').textContent = 'Tu equipo está trabajando...';
+        document.getElementById('typing').textContent = 'Tu equipo esta trabajando...';
 
         try {
-            const res = await fetch('/chat', {
+            var res = await fetch('/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({mensaje: msg, session_id: sessionId, agente: agenteSeleccionado})
             });
 
             if (!res.ok) {
-                const errText = await res.text();
+                var errText = await res.text();
                 throw new Error('Error ' + res.status + ': ' + errText);
             }
 
-            const data = await res.json();
+            var data = await res.json();
             document.getElementById('typing').textContent = '';
 
             if (data.html_file_id) {
-                const btn2 = document.createElement('a');
-                btn2.href = '/descargar/' + data.html_file_id;
-                btn2.download = 'vertice-digital.html';
-                btn2.style.cssText = 'display:inline-block;margin-top:10px;padding:10px 20px;background:#6c63ff;color:#fff;border-radius:20px;text-decoration:none;font-size:13px;font-weight:500;';
-                btn2.textContent = '⬇ Descargar index.html';
-                const msgDiv = document.createElement('div');
+                var enlace = document.createElement('a');
+                enlace.href = '/descargar/' + data.html_file_id;
+                enlace.download = 'vertice-digital.html';
+                enlace.style.cssText = 'display:inline-block;margin-top:10px;padding:10px 20px;background:#6c63ff;color:#fff;border-radius:20px;text-decoration:none;font-size:13px;font-weight:500;';
+                enlace.textContent = 'Descargar index.html';
+                var msgDiv = document.createElement('div');
                 msgDiv.className = 'msg bot';
-                msgDiv.innerHTML = '<div class="agente-tag">Lead Developer</div>✅ Página lista para descargar:';
-                msgDiv.appendChild(btn2);
+                msgDiv.innerHTML = '<div class="agente-tag">Lead Developer</div>Pagina lista para descargar:';
+                msgDiv.appendChild(enlace);
                 document.getElementById('messages').appendChild(msgDiv);
-                document.getElementById('messages').scrollTop = 999999;
+                var m = document.getElementById('messages');
+                m.scrollTop = m.scrollHeight;
             } else if (data.modo === 'paralelo' && data.resultados) {
-                const colores = ['bot', 'bot-paralelo', 'bot-paralelo2', 'bot-paralelo3'];
-                Object.entries(data.resultados).forEach(([key, val], i) => {
-                    agregarMensaje(val.respuesta, colores[i % colores.length], val.nombre);
+                var colores = ['bot', 'bot-paralelo', 'bot-paralelo2', 'bot-paralelo3'];
+                var idx = 0;
+                Object.keys(data.resultados).forEach(function(key) {
+                    var val = data.resultados[key];
+                    agregarMensaje(val.respuesta, colores[idx % colores.length], val.nombre);
+                    idx++;
                 });
             } else {
-                agregarMensaje(data.respuesta, 'bot', data.nombre_agente);
+                agregarMensaje(data.respuesta || 'Sin respuesta', 'bot', data.nombre_agente || 'Agente');
             }
 
             if (data.telegram_enviado) {
-                const banner = document.createElement('div');
+                var banner = document.createElement('div');
                 banner.className = 'aprobacion-banner';
-                banner.textContent = '📱 Enviado a Telegram para aprobación';
+                banner.textContent = 'Enviado a Telegram para aprobacion';
                 document.getElementById('messages').lastChild.appendChild(banner);
             }
 
         } catch (err) {
             document.getElementById('typing').textContent = '';
-            agregarMensaje('❌ Error al contactar al agente: ' + err.message, 'bot-error', 'Sistema');
+            agregarMensaje('Error: ' + err.message, 'bot-error', 'Sistema');
         } finally {
             enviando = false;
             btn.disabled = false;
@@ -166,14 +178,17 @@ HTML_CHAT = """
     }
 
     function agregarMensaje(texto, tipo, agente) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.className = 'msg ' + tipo;
-        const tag = agente ? `<div class="agente-tag">${agente}</div>` : '';
-        const textoFormateado = texto.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>').replace(/\n/g, '<br>');
+        var textoStr = texto ? String(texto) : '';
+        var tag = agente ? '<div class="agente-tag">' + agente + '</div>' : '';
+        var textoFormateado = textoStr.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>').replace(/\n/g, '<br>');
         div.innerHTML = tag + textoFormateado;
-        document.getElementById('messages').appendChild(div);
-        document.getElementById('messages').scrollTop = 999999;
+        var msgs = document.getElementById('messages');
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
     }
+});
 </script>
 </body>
 </html>
