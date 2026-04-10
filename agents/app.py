@@ -33,14 +33,15 @@ HTML_CHAT = """
         .msg { max-width: 85%; padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.6; }
         .msg.user { align-self: flex-end; background: #6c63ff; color: #fff; border-radius: 14px 14px 4px 14px; }
         .msg.bot { align-self: flex-start; background: #252540; color: #e0e0e0; border-radius: 14px 14px 14px 4px; border: 1px solid #2a2a4a; }
-        .msg.bot-paralelo { align-self: flex-start; background: #1a2a1a; color: #90ee90; border-radius: 14px 14px 14px 4px; border: 1px solid #2a4a2a; }
+        .msg.bot-paralelo  { align-self: flex-start; background: #1a2a1a; color: #90ee90; border-radius: 14px 14px 14px 4px; border: 1px solid #2a4a2a; }
+        .msg.bot-paralelo2 { align-self: flex-start; background: #2a1a2a; color: #da90ee; border-radius: 14px 14px 14px 4px; border: 1px solid #4a2a4a; }
+        .msg.bot-paralelo3 { align-self: flex-start; background: #2a2a1a; color: #eeda90; border-radius: 14px 14px 14px 4px; border: 1px solid #4a4a2a; }
         .agente-tag { font-size: 10px; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         .msg.bot .agente-tag { color: #6c63ff; }
-        .msg.bot-paralelo .agente-tag { color: #90ee90; }
+        .msg.bot-paralelo  .agente-tag { color: #90ee90; }
+        .msg.bot-paralelo2 .agente-tag { color: #da90ee; }
+        .msg.bot-paralelo3 .agente-tag { color: #eeda90; }
         .msg pre { background: #0f0f1a; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
-        .netlify-banner { background: #0a2a1a; border: 1px solid #00c851; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #00c851; margin-top: 8px; }
-        .netlify-banner a { color: #00c851; text-decoration: underline; }
-        .netlify-error { background: #2a0a0a; border: 1px solid #ff4444; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #ff4444; margin-top: 8px; }
         .aprobacion-banner { background: #2a1a0a; border: 1px solid #ff9800; border-radius: 10px; padding: 10px 14px; font-size: 12px; color: #ff9800; margin-top: 8px; }
         .typing { font-size: 12px; color: #555; padding: 0 24px 8px; font-style: italic; }
         .input-area { padding: 16px 24px; border-top: 1px solid #2a2a4a; display: flex; gap: 8px; }
@@ -65,7 +66,6 @@ HTML_CHAT = """
         <span class="agent-pill" onclick="setAgente('ventas', this)">Ventas</span>
         <span class="agent-pill" onclick="setAgente('desarrollador', this)">Desarrollador</span>
         <span class="agent-pill" onclick="setAgente('soporte', this)">Soporte</span>
-        <span class="agent-pill" onclick="setAgente('disenador', this)">Diseñador</span>
     </div>
     <div class="messages" id="messages">
         <div class="msg bot">
@@ -100,11 +100,7 @@ HTML_CHAT = """
         agregarMensaje(msg, 'user', '');
         document.getElementById('typing').textContent = 'Tu equipo está trabajando...';
 
-        // Solo usar paralelo si el agente está seleccionado manualmente como desarrollador
-        const esParalelo = agenteSeleccionado === 'desarrollador';
-        const endpoint = esParalelo ? '/chat/paralelo' : '/chat';
-
-        const res = await fetch(endpoint, {
+        const res = await fetch('/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({mensaje: msg, session_id: sessionId, agente: agenteSeleccionado})
@@ -112,13 +108,13 @@ HTML_CHAT = """
         const data = await res.json();
         document.getElementById('typing').textContent = '';
 
-        if (data.respuesta_dev) {
-            agregarMensaje(data.respuesta_dev, 'bot', data.nombre_dev);
-            mostrarBannersNetlify(data);
-            agregarMensaje(data.respuesta_diseno, 'bot-paralelo', data.nombre_diseno);
+        if (data.modo === 'paralelo' && data.resultados) {
+            const colores = ['bot', 'bot-paralelo', 'bot-paralelo2', 'bot-paralelo3'];
+            Object.entries(data.resultados).forEach(([key, val], i) => {
+                agregarMensaje(val.respuesta, colores[i % colores.length], val.nombre);
+            });
         } else {
             agregarMensaje(data.respuesta, 'bot', data.nombre_agente);
-            mostrarBannersNetlify(data);
         }
 
         if (data.telegram_enviado) {
@@ -129,26 +125,10 @@ HTML_CHAT = """
         }
     }
 
-    function mostrarBannersNetlify(data) {
-        const lastMsg = document.getElementById('messages').lastChild;
-        if (data.netlify_url) {
-            const banner = document.createElement('div');
-            banner.className = 'netlify-banner';
-            banner.innerHTML = '🚀 <b>Deployado en Netlify:</b> <a href="' + data.netlify_url + '" target="_blank">' + data.netlify_url + '</a>';
-            lastMsg.appendChild(banner);
-        }
-        if (data.netlify_error) {
-            const banner = document.createElement('div');
-            banner.className = 'netlify-error';
-            banner.innerHTML = '⚠️ <b>Deploy fallido:</b> ' + data.netlify_error;
-            lastMsg.appendChild(banner);
-        }
-    }
-
     function agregarMensaje(texto, tipo, agente) {
         const div = document.createElement('div');
         div.className = 'msg ' + tipo;
-        const tag = agente ? '<div class="agente-tag">' + agente + '</div>' : '';
+        const tag = agente ? `<div class="agente-tag">${agente}</div>` : '';
         const textoFormateado = texto.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>').replace(/\n/g, '<br>');
         div.innerHTML = tag + textoFormateado;
         document.getElementById('messages').appendChild(div);
@@ -180,6 +160,7 @@ def chat():
     if len(sesiones[session_id]) > 20:
         sesiones[session_id] = sesiones[session_id][-20:]
 
+    # Detectar si necesita aprobación (posts de redes sociales)
     telegram_enviado = False
     palabras_aprobacion = ['post', 'publicación', 'instagram', 'facebook', 'tiktok', 'publicar']
     if any(p in mensaje.lower() for p in palabras_aprobacion):
