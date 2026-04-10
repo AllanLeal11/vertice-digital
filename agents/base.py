@@ -1,4 +1,5 @@
 import os
+import re
 from anthropic import Anthropic
 from .router import detectar_agente
 from .marketing import MARKETING_PROMPT
@@ -20,7 +21,6 @@ AGENTES = {
 }
 
 def calcular_tokens(mensaje: str, agente_key: str) -> int:
-    """Calcula los tokens necesarios según el tipo de tarea."""
     if agente_key != "desarrollador":
         return 2000
 
@@ -49,15 +49,8 @@ def calcular_tokens(mensaje: str, agente_key: str) -> int:
     else:
         return 4000
 
-def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto") -> dict:
-    if historial is None:
-        historial = []
-
-    if agente_forzado and agente_forzado != "auto" and agente_forzado in AGENTES:
-        agente_key = agente_forzado
-    else:
-        agente_key = detectar_agente(mensaje)
-
+def _llamar_agente(agente_key: str, mensaje: str, historial: list) -> tuple:
+    """Llama a un agente y retorna (respuesta_raw, netlify_url, netlify_error)."""
     agente = AGENTES[agente_key]
     mensajes = historial + [{"role": "user", "content": mensaje}]
     max_tokens = calcular_tokens(mensaje, agente_key)
@@ -79,9 +72,31 @@ def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto"
         netlify_url = resultado.get("netlify_url")
         netlify_error = resultado.get("netlify_error")
 
+    return respuesta_raw, netlify_url, netlify_error
+
+def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto") -> dict:
+    if historial is None:
+        historial = []
+
+    # Determinar agente inicial
+    if agente_forzado and agente_forzado != "auto" and agente_forzado in AGENTES:
+        agente_key = agente_forzado
+    else:
+        agente_key = detectar_agente(mensaje)
+
+    respuesta_raw, netlify_url, netlify_error = _llamar_agente(agente_key, mensaje, historial)
+
+    # Detectar si el asistente emitió un código de redirección
+    match = re.match(r"^REDIRIGIR:(\w+)$", respuesta_raw.strip())
+    if match:
+        agente_destino = match.group(1)
+        if agente_destino in AGENTES:
+            agente_key = agente_destino
+            respuesta_raw, netlify_url, netlify_error = _llamar_agente(agente_key, mensaje, historial)
+
     return {
         "agente": agente_key,
-        "nombre_agente": agente["nombre"],
+        "nombre_agente": AGENTES[agente_key]["nombre"],
         "respuesta": respuesta_raw,
         "netlify_url": netlify_url,
         "netlify_error": netlify_error,
