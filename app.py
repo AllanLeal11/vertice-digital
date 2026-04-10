@@ -2,6 +2,7 @@ import os
 import uuid
 from flask import Flask, request, jsonify, render_template_string
 from agents.base import responder, responder_paralelo
+from agents.router import detectar_combinacion
 from agents.telegram_service import enviar_aprobacion, notificar
 
 app = Flask(__name__)
@@ -37,11 +38,13 @@ HTML_CHAT = """
         .msg.bot-paralelo  { align-self: flex-start; background: #1a2a1a; color: #90ee90; border-radius: 14px 14px 14px 4px; border: 1px solid #2a4a2a; }
         .msg.bot-paralelo2 { align-self: flex-start; background: #2a1a2a; color: #da90ee; border-radius: 14px 14px 14px 4px; border: 1px solid #4a2a4a; }
         .msg.bot-paralelo3 { align-self: flex-start; background: #2a2a1a; color: #eeda90; border-radius: 14px 14px 14px 4px; border: 1px solid #4a4a2a; }
+        .msg.bot-error { align-self: flex-start; background: #2a1a1a; color: #ff6b6b; border-radius: 14px 14px 14px 4px; border: 1px solid #4a2a2a; }
         .agente-tag { font-size: 10px; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         .msg.bot .agente-tag { color: #6c63ff; }
         .msg.bot-paralelo  .agente-tag { color: #90ee90; }
         .msg.bot-paralelo2 .agente-tag { color: #da90ee; }
         .msg.bot-paralelo3 .agente-tag { color: #eeda90; }
+        .msg.bot-error .agente-tag { color: #ff6b6b; }
         .msg pre { background: #0f0f1a; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
         .aprobacion-banner { background: #2a1a0a; border: 1px solid #ff9800; border-radius: 10px; padding: 10px 14px; font-size: 12px; color: #ff9800; margin-top: 8px; }
         .typing { font-size: 12px; color: #555; padding: 0 24px 8px; font-style: italic; }
@@ -51,6 +54,7 @@ HTML_CHAT = """
         .input-area input::placeholder { color: #555; }
         .input-area button { padding: 12px 20px; background: #6c63ff; color: white; border: none; border-radius: 24px; cursor: pointer; font-size: 14px; font-weight: 500; font-family: 'Inter', sans-serif; transition: background 0.2s; }
         .input-area button:hover { background: #5a52cc; }
+        .input-area button:disabled { background: #3a3a5a; cursor: not-allowed; }
         .modo-paralelo { font-size: 11px; color: #555; padding: 4px 24px; text-align: right; }
     </style>
 </head>
@@ -78,12 +82,13 @@ HTML_CHAT = """
     <div class="modo-paralelo" id="modo-label"></div>
     <div class="input-area">
         <input type="text" id="input" placeholder="Decile algo a tu equipo..." onkeypress="if(event.key==='Enter') enviar()"/>
-        <button onclick="enviar()">Enviar</button>
+        <button id="btn-enviar" onclick="enviar()">Enviar</button>
     </div>
 </div>
 <script>
     const sessionId = Math.random().toString(36).substr(2, 9);
     let agenteSeleccionado = 'auto';
+    let enviando = false;
 
     function setAgente(agente, el) {
         agenteSeleccionado = agente;
@@ -93,48 +98,70 @@ HTML_CHAT = """
         label.textContent = agente === 'desarrollador' ? '⚡ Modo paralelo activo: Desarrollador + Diseñador trabajarán juntos' : '';
     }
 
+    // FIX 1: try/catch completo + deshabilitar botón mientras espera
     async function enviar() {
+        if (enviando) return;
         const input = document.getElementById('input');
+        const btn = document.getElementById('btn-enviar');
         const msg = input.value.trim();
         if (!msg) return;
+
+        enviando = true;
+        btn.disabled = true;
         input.value = '';
         agregarMensaje(msg, 'user', '');
         document.getElementById('typing').textContent = 'Tu equipo está trabajando...';
 
-        const res = await fetch('/chat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({mensaje: msg, session_id: sessionId, agente: agenteSeleccionado})
-        });
-        const data = await res.json();
-        document.getElementById('typing').textContent = '';
-
-        if (data.html_file_id) {
-            const btn = document.createElement('a');
-            btn.href = '/descargar/' + data.html_file_id;
-            btn.download = 'vertice-digital.html';
-            btn.style.cssText = 'display:inline-block;margin-top:10px;padding:10px 20px;background:#6c63ff;color:#fff;border-radius:20px;text-decoration:none;font-size:13px;font-weight:500;';
-            btn.textContent = '⬇ Descargar index.html';
-            const msg = document.createElement('div');
-            msg.className = 'msg bot';
-            msg.innerHTML = '<div class="agente-tag">Lead Developer</div>✅ Página lista para descargar:';
-            msg.appendChild(btn);
-            document.getElementById('messages').appendChild(msg);
-            document.getElementById('messages').scrollTop = 999999;
-        } else if (data.modo === 'paralelo' && data.resultados) {
-            const colores = ['bot', 'bot-paralelo', 'bot-paralelo2', 'bot-paralelo3'];
-            Object.entries(data.resultados).forEach(([key, val], i) => {
-                agregarMensaje(val.respuesta, colores[i % colores.length], val.nombre);
+        try {
+            const res = await fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mensaje: msg, session_id: sessionId, agente: agenteSeleccionado})
             });
-        } else {
-            agregarMensaje(data.respuesta, 'bot', data.nombre_agente);
-        }
 
-        if (data.telegram_enviado) {
-            const banner = document.createElement('div');
-            banner.className = 'aprobacion-banner';
-            banner.textContent = '📱 Enviado a Telegram para aprobación';
-            document.getElementById('messages').lastChild.appendChild(banner);
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error('Error ' + res.status + ': ' + errText);
+            }
+
+            const data = await res.json();
+            document.getElementById('typing').textContent = '';
+
+            if (data.html_file_id) {
+                const btn2 = document.createElement('a');
+                btn2.href = '/descargar/' + data.html_file_id;
+                btn2.download = 'vertice-digital.html';
+                btn2.style.cssText = 'display:inline-block;margin-top:10px;padding:10px 20px;background:#6c63ff;color:#fff;border-radius:20px;text-decoration:none;font-size:13px;font-weight:500;';
+                btn2.textContent = '⬇ Descargar index.html';
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'msg bot';
+                msgDiv.innerHTML = '<div class="agente-tag">Lead Developer</div>✅ Página lista para descargar:';
+                msgDiv.appendChild(btn2);
+                document.getElementById('messages').appendChild(msgDiv);
+                document.getElementById('messages').scrollTop = 999999;
+            } else if (data.modo === 'paralelo' && data.resultados) {
+                const colores = ['bot', 'bot-paralelo', 'bot-paralelo2', 'bot-paralelo3'];
+                Object.entries(data.resultados).forEach(([key, val], i) => {
+                    agregarMensaje(val.respuesta, colores[i % colores.length], val.nombre);
+                });
+            } else {
+                agregarMensaje(data.respuesta, 'bot', data.nombre_agente);
+            }
+
+            if (data.telegram_enviado) {
+                const banner = document.createElement('div');
+                banner.className = 'aprobacion-banner';
+                banner.textContent = '📱 Enviado a Telegram para aprobación';
+                document.getElementById('messages').lastChild.appendChild(banner);
+            }
+
+        } catch (err) {
+            document.getElementById('typing').textContent = '';
+            agregarMensaje('❌ Error al contactar al agente: ' + err.message, 'bot-error', 'Sistema');
+        } finally {
+            enviando = false;
+            btn.disabled = false;
+            document.getElementById('input').focus();
         }
     }
 
@@ -167,7 +194,18 @@ def chat():
     if session_id not in sesiones:
         sesiones[session_id] = []
     historial = sesiones[session_id]
-    resultado = responder(mensaje, historial, agente_forzado)
+
+    try:
+        resultado = responder(mensaje, historial, agente_forzado)
+    except Exception as e:
+        return jsonify({
+            "agente": "sistema",
+            "nombre_agente": "Sistema",
+            "respuesta": f"[Error interno del servidor: {str(e)}]",
+            "modo": "normal",
+            "telegram_enviado": False
+        }), 500
+
     sesiones[session_id].append({"role": "user", "content": mensaje})
     sesiones[session_id].append({"role": "assistant", "content": resultado["respuesta"]})
     if len(sesiones[session_id]) > 20:
@@ -213,6 +251,7 @@ def descargar(file_id):
         headers={'Content-Disposition': f'attachment; filename=vertice-digital.html'}
     )
 
+# FIX 3: /chat/paralelo ahora pasa combinacion correctamente
 @app.route('/chat/paralelo', methods=['POST'])
 def chat_paralelo():
     data = request.json
@@ -220,8 +259,19 @@ def chat_paralelo():
     session_id = data.get('session_id', 'default')
     if not mensaje:
         return jsonify({"error": "Mensaje vacío"}), 400
-    resultado = responder_paralelo(mensaje)
-    notificar(f"⚡ Tarea paralela completada:\nDesarrollador + Diseñador trabajaron en: {mensaje[:80]}...")
+
+    combinacion = detectar_combinacion(mensaje) or {
+        "agentes": ["desarrollador", "disenador"],
+        "nombre": "default",
+        "descripcion": "Desarrollador + Diseñador"
+    }
+
+    try:
+        resultado = responder_paralelo(mensaje, combinacion)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    notificar(f"⚡ Tarea paralela completada:\n{combinacion['descripcion']} trabajaron en: {mensaje[:80]}...")
     return jsonify(resultado)
 
 @app.route('/aprobar/<id_aprobacion>', methods=['POST'])
