@@ -3,7 +3,7 @@ from anthropic import Anthropic
 from .router import detectar_agente
 from .marketing import MARKETING_PROMPT
 from .ventas import VENTAS_PROMPT
-from .desarrollador import DESARROLLADOR_PROMPT
+from .desarrollador import DESARROLLADOR_PROMPT, procesar_respuesta_desarrollador
 from .soporte import SOPORTE_PROMPT
 from .asistente import ASISTENTE_PROMPT
 from .disenador import DISENADOR_PROMPT
@@ -38,10 +38,23 @@ def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto"
         messages=mensajes
     )
 
+    respuesta_raw = response.content[0].text
+    netlify_url = None
+    netlify_error = None
+
+    # Si es el desarrollador, procesar posible deploy a Netlify
+    if agente_key == "desarrollador":
+        resultado = procesar_respuesta_desarrollador(respuesta_raw)
+        respuesta_raw = resultado["respuesta_limpia"]
+        netlify_url = resultado.get("netlify_url")
+        netlify_error = resultado.get("netlify_error")
+
     return {
         "agente": agente_key,
         "nombre_agente": agente["nombre"],
-        "respuesta": response.content[0].text
+        "respuesta": respuesta_raw,
+        "netlify_url": netlify_url,
+        "netlify_error": netlify_error,
     }
 
 def responder_paralelo(mensaje: str) -> dict:
@@ -58,7 +71,11 @@ def responder_paralelo(mensaje: str) -> dict:
             system=DESARROLLADOR_PROMPT,
             messages=[{"role": "user", "content": mensaje}]
         )
-        resultado_dev["respuesta"] = r.content[0].text
+        raw = r.content[0].text
+        resultado = procesar_respuesta_desarrollador(raw)
+        resultado_dev["respuesta"] = resultado["respuesta_limpia"]
+        resultado_dev["netlify_url"] = resultado.get("netlify_url")
+        resultado_dev["netlify_error"] = resultado.get("netlify_error")
 
     def trabajo_dis():
         prompt_diseno = f"""El desarrollador está trabajando en esto: {mensaje}
@@ -84,6 +101,8 @@ Si el desarrollador va a crear código, sugerí mejoras de diseño concretas con
         "modo": "paralelo",
         "respuesta_dev": resultado_dev.get("respuesta", ""),
         "nombre_dev": "Lead Developer",
+        "netlify_url": resultado_dev.get("netlify_url"),
+        "netlify_error": resultado_dev.get("netlify_error"),
         "respuesta_diseno": resultado_dis.get("respuesta", ""),
         "nombre_diseno": "Diseñador Gráfico"
     }
