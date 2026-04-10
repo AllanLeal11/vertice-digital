@@ -44,7 +44,8 @@ def _ejecutar_herramienta(nombre: str, params: dict) -> str:
 def _bloque_a_dict(block) -> dict:
     """Convierte un ContentBlock del SDK a dict serializable para la API."""
     if block.type == "thinking":
-        return {"type": "thinking", "thinking": block.thinking}
+        # signature es obligatorio — Anthropic lo usa para verificar integridad
+        return {"type": "thinking", "thinking": block.thinking, "signature": block.signature}
     if block.type == "text":
         return {"type": "text", "text": block.text}
     if block.type == "tool_use":
