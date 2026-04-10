@@ -13,8 +13,7 @@ from .herramientas import TOOLS, buscar_negocios_maps, buscar_en_web
 
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-THINKING_BUDGET = 2000   # tokens internos de razonamiento
-MAX_TOKENS = 8000        # tokens totales (thinking + respuesta)
+MAX_TOKENS = 4000
 
 AGENTES = {
     "marketing":     {"prompt": MARKETING_PROMPT,     "nombre": "Director de Marketing"},
@@ -55,7 +54,7 @@ def _bloque_a_dict(block) -> dict:
 
 def _llamar_claude(system_prompt: str, mensajes: list) -> str:
     """
-    Llama a Claude con extended thinking y herramientas habilitadas.
+    Llama a Claude con herramientas habilitadas.
     Ejecuta el loop de tool use hasta obtener la respuesta final.
     """
     messages = list(mensajes)
@@ -64,7 +63,6 @@ def _llamar_claude(system_prompt: str, mensajes: list) -> str:
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=MAX_TOKENS,
-            thinking={"type": "enabled", "budget_tokens": THINKING_BUDGET},
             system=system_prompt,
             tools=TOOLS,
             messages=messages,
@@ -85,7 +83,7 @@ def _llamar_claude(system_prompt: str, mensajes: list) -> str:
                     "content": resultado,
                 })
 
-        # Agregar turno del asistente + resultados de herramientas al historial
+        # Agregar turno del asistente + resultados al historial
         messages.append({"role": "assistant", "content": [_bloque_a_dict(b) for b in response.content]})
         messages.append({"role": "user", "content": tool_results})
 

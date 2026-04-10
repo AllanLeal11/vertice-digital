@@ -50,7 +50,7 @@ def _geocodificar(ubicacion: str) -> tuple[float, float] | None:
             "https://nominatim.openstreetmap.org/search",
             params={"q": ubicacion, "format": "json", "limit": 1},
             headers={"User-Agent": "VerticeDigital/1.0 (contacto@verticedigital.cr)"},
-            timeout=10,
+            timeout=6,
         )
         data = resp.json()
         if not data:
@@ -112,7 +112,7 @@ out body center 15;
         resp = requests.post(
             "https://overpass-api.de/api/interpreter",
             data=overpass_query,
-            timeout=20,
+            timeout=8,
         )
         data = resp.json()
 
