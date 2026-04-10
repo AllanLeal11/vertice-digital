@@ -19,6 +19,36 @@ AGENTES = {
     "disenador":     {"prompt": DISENADOR_PROMPT,      "nombre": "Diseñador Gráfico"},
 }
 
+def calcular_tokens(mensaje: str, agente_key: str) -> int:
+    """Calcula los tokens necesarios según el tipo de tarea."""
+    if agente_key != "desarrollador":
+        return 2000
+
+    msg = mensaje.lower()
+
+    palabras_grandes = [
+        "sitio completo", "página completa", "web completa", "landing page completa",
+        "varias secciones", "múltiples secciones", "hero", "portafolio",
+        "e-commerce", "tienda", "completo", "profesional", "empresa", "full"
+    ]
+    palabras_pequenas = [
+        "botón", "navbar", "footer", "componente", "fix", "corregir",
+        "arreglar", "cambiar", "actualizar", "pequeño", "simple", "snippet"
+    ]
+    palabras_medianas = [
+        "página", "web", "landing", "formulario", "contacto",
+        "menú", "restaurant", "negocio", "servicios"
+    ]
+
+    if any(p in msg for p in palabras_grandes):
+        return 8000
+    elif any(p in msg for p in palabras_pequenas):
+        return 2000
+    elif any(p in msg for p in palabras_medianas):
+        return 5000
+    else:
+        return 4000
+
 def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto") -> dict:
     if historial is None:
         historial = []
@@ -30,10 +60,11 @@ def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto"
 
     agente = AGENTES[agente_key]
     mensajes = historial + [{"role": "user", "content": mensaje}]
+    max_tokens = calcular_tokens(mensaje, agente_key)
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=2000,
+        max_tokens=max_tokens,
         system=agente["prompt"],
         messages=mensajes
     )
@@ -42,7 +73,6 @@ def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto"
     netlify_url = None
     netlify_error = None
 
-    # Si es el desarrollador, procesar posible deploy a Netlify
     if agente_key == "desarrollador":
         resultado = procesar_respuesta_desarrollador(respuesta_raw)
         respuesta_raw = resultado["respuesta_limpia"]
@@ -63,11 +93,12 @@ def responder_paralelo(mensaje: str) -> dict:
 
     resultado_dev = {}
     resultado_dis = {}
+    max_tokens = calcular_tokens(mensaje, "desarrollador")
 
     def trabajo_dev():
         r = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=2000,
+            max_tokens=max_tokens,
             system=DESARROLLADOR_PROMPT,
             messages=[{"role": "user", "content": mensaje}]
         )
@@ -79,7 +110,7 @@ def responder_paralelo(mensaje: str) -> dict:
 
     def trabajo_dis():
         prompt_diseno = f"""El desarrollador está trabajando en esto: {mensaje}
-        
+
 Tu trabajo es revisar el enfoque del desarrollador y proponer mejoras visuales y de UX específicas.
 Si el desarrollador va a crear código, sugerí mejoras de diseño concretas con valores CSS exactos."""
         r = client.messages.create(
