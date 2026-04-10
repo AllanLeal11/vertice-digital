@@ -1,3 +1,4 @@
+
 import os
 from anthropic import Anthropic
 
@@ -8,10 +9,10 @@ Tu única tarea es analizar el mensaje y responder con UNA SOLA PALABRA indicand
 
 - "marketing" → redes sociales, publicidad, contenido, Instagram, Facebook, TikTok, SEO, posts, campañas, estrategia digital
 - "ventas" → precios, cotizaciones, propuestas, contratos, servicios, cuánto cuesta, planes, paquetes
-- "desarrollador" → código, bugs, desarrollo web, apps, HTML, CSS, JavaScript, Python, Flask, base de datos, API, deploy
+- "desarrollador" → código, bugs, desarrollo web, apps, HTML, CSS, JavaScript, Python, Flask, base de datos, API, deploy, hacer una web, crear una página, construir un sitio
 - "soporte" → problemas con servicios existentes, errores, algo no funciona, mantenimiento, caído, lento
 - "disenador" → diseño visual, UI, UX, colores, tipografía, logos, identidad de marca, Canva, estética, interfaz
-- "asistente" → cualquier otra consulta general, información de la empresa, gestión, emails, organización
+- "asistente" → cualquier otra consulta general, información de la empresa, gestión, emails, organización, tareas, pendientes
 
 Responde SOLO con una de esas palabras, sin explicación."""
 
