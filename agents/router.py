@@ -1,7 +1,7 @@
 import os
-from anthropic import Anthropic
+from groq import Groq
 
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 ROUTER_PROMPT = """Eres el router de Vértice Digital. Analizás el mensaje y respondés con UNA SOLA PALABRA:
 
@@ -14,7 +14,6 @@ ROUTER_PROMPT = """Eres el router de Vértice Digital. Analizás el mensaje y re
 
 Respondé SOLO con una de esas palabras."""
 
-# Combinaciones paralelas: palabras clave → lista de agentes que trabajan juntos
 COMBINACIONES_PARALELO = [
     {
         "nombre": "web_completa",
@@ -67,19 +66,20 @@ COMBINACIONES_PARALELO = [
 ]
 
 def detectar_agente(mensaje: str) -> str:
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         max_tokens=10,
-        system=ROUTER_PROMPT,
-        messages=[{"role": "user", "content": mensaje}]
+        messages=[
+            {"role": "system", "content": ROUTER_PROMPT},
+            {"role": "user", "content": mensaje}
+        ]
     )
-    agente = response.content[0].text.strip().lower()
+    agente = response.choices[0].message.content.strip().lower()
     agentes_validos = ["marketing", "ventas", "desarrollador", "soporte", "disenador", "asistente"]
     return agente if agente in agentes_validos else "asistente"
 
 def detectar_combinacion(mensaje: str) -> dict | None:
-    """Detecta si el mensaje activa una combinación paralela de agentes.
-    Retorna la combinación encontrada o None si es tarea de un solo agente."""
+    """Detecta si el mensaje activa una combinación paralela de agentes."""
     msg = mensaje.lower()
     for combo in COMBINACIONES_PARALELO:
         if any(palabra in msg for palabra in combo["palabras"]):
