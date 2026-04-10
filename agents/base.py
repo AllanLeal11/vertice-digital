@@ -26,14 +26,17 @@ AGENTES = {
 
 def _llamar_groq(system_prompt: str, mensajes: list) -> str:
     """Llama a Groq con el historial de mensajes y retorna el texto de respuesta."""
-    messages = [{"role": "system", "content": system_prompt}] + mensajes
-
-    response = client.chat.completions.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        messages=messages
-    )
-    return response.choices[0].message.content or ""
+    # FIX 2: try/catch para capturar errores de API (key inválida, timeout, etc.)
+    try:
+        messages = [{"role": "system", "content": system_prompt}] + mensajes
+        response = client.chat.completions.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            messages=messages
+        )
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        return f"[Error al conectar con el modelo: {str(e)}]"
 
 
 def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto") -> dict:
