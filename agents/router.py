@@ -1,20 +1,25 @@
-
 import os
 from anthropic import Anthropic
 
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-ROUTER_PROMPT = """Eres el router de Vértice Digital, una empresa de TI profesional en Costa Rica.
-Tu única tarea es analizar el mensaje y responder con UNA SOLA PALABRA indicando qué agente debe atender:
+ROUTER_PROMPT = """Eres el router de Vértice Digital. Analizás el mensaje y respondés con UNA SOLA PALABRA:
 
-- "marketing" → redes sociales, publicidad, contenido, Instagram, Facebook, TikTok, SEO, posts, campañas, estrategia digital
-- "ventas" → precios, cotizaciones, propuestas, contratos, servicios, cuánto cuesta, planes, paquetes
-- "desarrollador" → código, bugs, desarrollo web, apps, HTML, CSS, JavaScript, Python, Flask, base de datos, API, deploy, hacer una web, crear una página, construir un sitio
-- "soporte" → problemas con servicios existentes, errores, algo no funciona, mantenimiento, caído, lento
-- "disenador" → diseño visual, UI, UX, colores, tipografía, logos, identidad de marca, Canva, estética, interfaz
-- "asistente" → cualquier otra consulta general, información de la empresa, gestión, emails, organización, tareas, pendientes
+- "marketing" → redes sociales, publicidad, SEO, contenido, posts, campañas
+- "ventas" → precios, cotizaciones, propuestas, contratos, clientes nuevos
+- "desarrollador" → código, web, app, página, sitio, programar, sistema, bot, deploy
+- "soporte" → errores, problemas, bugs, caído, lento, arreglar
+- "disenador" → diseño, logo, colores, tipografía, identidad visual
+- "asistente" → agenda, email, tareas, organización, recordatorio, resumen
 
-Responde SOLO con una de esas palabras, sin explicación."""
+Si el mensaje pide crear algo visual o una web/app, respondé "desarrollador".
+
+Respondé SOLO con una de esas palabras."""
+
+PALABRAS_PARALELO = [
+    'web', 'página', 'pagina', 'sitio', 'app', 'aplicación', 'aplicacion',
+    'diseño', 'diseno', 'interfaz', 'ui', 'landing', 'frontend'
+]
 
 def detectar_agente(mensaje: str) -> str:
     response = client.messages.create(
@@ -26,3 +31,8 @@ def detectar_agente(mensaje: str) -> str:
     agente = response.content[0].text.strip().lower()
     agentes_validos = ["marketing", "ventas", "desarrollador", "soporte", "disenador", "asistente"]
     return agente if agente in agentes_validos else "asistente"
+
+def es_tarea_paralela(mensaje: str) -> bool:
+    """Detecta si la tarea requiere desarrollador + diseñador trabajando juntos."""
+    msg = mensaje.lower()
+    return any(p in msg for p in PALABRAS_PARALELO)
