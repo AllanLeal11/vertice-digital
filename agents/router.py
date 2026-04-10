@@ -12,13 +12,58 @@ ROUTER_PROMPT = """Eres el router de Vértice Digital. Analizás el mensaje y re
 - "disenador" → diseño, logo, colores, tipografía, identidad visual
 - "asistente" → agenda, email, tareas, organización, recordatorio, resumen
 
-Si el mensaje pide crear algo visual o una web/app, respondé "desarrollador".
-
 Respondé SOLO con una de esas palabras."""
 
-PALABRAS_PARALELO = [
-    'web', 'página', 'pagina', 'sitio', 'app', 'aplicación', 'aplicacion',
-    'diseño', 'diseno', 'interfaz', 'ui', 'landing', 'frontend'
+# Combinaciones paralelas: palabras clave → lista de agentes que trabajan juntos
+COMBINACIONES_PARALELO = [
+    {
+        "nombre": "web_completa",
+        "palabras": ['web', 'página', 'pagina', 'sitio', 'landing', 'frontend', 'interfaz'],
+        "agentes": ["desarrollador", "disenador", "ventas"],
+        "descripcion": "Desarrollador + Diseñador + Ventas"
+    },
+    {
+        "nombre": "app",
+        "palabras": ['app', 'aplicación', 'aplicacion', 'sistema', 'plataforma', 'dashboard'],
+        "agentes": ["desarrollador", "disenador", "ventas"],
+        "descripcion": "Desarrollador + Diseñador + Ventas"
+    },
+    {
+        "nombre": "automatizacion",
+        "palabras": ['bot', 'automatizar', 'automatización', 'automatizacion', 'webhook', 'integración', 'integracion', 'script'],
+        "agentes": ["desarrollador", "ventas"],
+        "descripcion": "Desarrollador + Ventas"
+    },
+    {
+        "nombre": "campana",
+        "palabras": ['campaña', 'campana', 'lanzamiento', 'promoción', 'promocion', 'anuncio', 'publicidad'],
+        "agentes": ["marketing", "disenador", "ventas"],
+        "descripcion": "Marketing + Diseñador + Ventas"
+    },
+    {
+        "nombre": "contenido_redes",
+        "palabras": ['post', 'publicación', 'publicacion', 'contenido', 'redes', 'instagram', 'facebook', 'tiktok'],
+        "agentes": ["marketing", "disenador"],
+        "descripcion": "Marketing + Diseñador"
+    },
+    {
+        "nombre": "soporte_cliente",
+        "palabras": ['error', 'caído', 'caido', 'falla', 'problema', 'bug', 'roto', 'no funciona'],
+        "agentes": ["soporte", "asistente"],
+        "descripcion": "Soporte + Asistente"
+    },
+    {
+        "nombre": "propuesta_cliente",
+        "palabras": ['propuesta', 'cotización', 'cotizacion', 'presupuesto', 'cliente nuevo', 'prospecto'],
+        "agentes": ["ventas", "asistente"],
+        "descripcion": "Ventas + Asistente"
+    },
+    {
+        "nombre": "identidad_marca",
+        "palabras": ['logo', 'marca', 'identidad', 'branding', 'colores', 'tipografía', 'tipografia'],
+        "agentes": ["disenador", "marketing"],
+        "descripcion": "Diseñador + Marketing"
+    },
 ]
 
 def detectar_agente(mensaje: str) -> str:
@@ -32,7 +77,11 @@ def detectar_agente(mensaje: str) -> str:
     agentes_validos = ["marketing", "ventas", "desarrollador", "soporte", "disenador", "asistente"]
     return agente if agente in agentes_validos else "asistente"
 
-def es_tarea_paralela(mensaje: str) -> bool:
-    """Detecta si la tarea requiere desarrollador + diseñador trabajando juntos."""
+def detectar_combinacion(mensaje: str) -> dict | None:
+    """Detecta si el mensaje activa una combinación paralela de agentes.
+    Retorna la combinación encontrada o None si es tarea de un solo agente."""
     msg = mensaje.lower()
-    return any(p in msg for p in PALABRAS_PARALELO)
+    for combo in COMBINACIONES_PARALELO:
+        if any(palabra in msg for palabra in combo["palabras"]):
+            return combo
+    return None
