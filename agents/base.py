@@ -12,8 +12,8 @@ from .disenador import DISENADOR_PROMPT
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 # Extended thinking: el agente razona internamente antes de responder
-THINKING_BUDGET = 8000   # tokens internos de razonamiento
-MAX_TOKENS = 16000       # tokens totales (thinking + respuesta)
+THINKING_BUDGET = 2000   # tokens internos de razonamiento
+MAX_TOKENS = 8000        # tokens totales (thinking + respuesta)
 
 AGENTES = {
     "marketing":     {"prompt": MARKETING_PROMPT,     "nombre": "Director de Marketing"},
@@ -27,7 +27,7 @@ AGENTES = {
 def _llamar_claude(system_prompt: str, mensajes: list) -> str:
     """Llama a Claude con extended thinking habilitado y retorna solo el texto."""
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=MAX_TOKENS,
         thinking={"type": "enabled", "budget_tokens": THINKING_BUDGET},
         system=system_prompt,
