@@ -100,11 +100,10 @@ HTML_CHAT = """
         agregarMensaje(msg, 'user', '');
         document.getElementById('typing').textContent = 'Tu equipo está trabajando...';
 
-        const esParalelo = agenteSeleccionado === 'desarrollador' ||
-            msg.toLowerCase().includes('web') || msg.toLowerCase().includes('página') ||
-            msg.toLowerCase().includes('diseño') || msg.toLowerCase().includes('app');
-
+        // Solo usar paralelo si el agente está seleccionado manualmente como desarrollador
+        const esParalelo = agenteSeleccionado === 'desarrollador';
         const endpoint = esParalelo ? '/chat/paralelo' : '/chat';
+
         const res = await fetch(endpoint, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -181,7 +180,6 @@ def chat():
     if len(sesiones[session_id]) > 20:
         sesiones[session_id] = sesiones[session_id][-20:]
 
-    # Detectar si necesita aprobación (posts de redes sociales)
     telegram_enviado = False
     palabras_aprobacion = ['post', 'publicación', 'instagram', 'facebook', 'tiktok', 'publicar']
     if any(p in mensaje.lower() for p in palabras_aprobacion):
