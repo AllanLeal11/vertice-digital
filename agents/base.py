@@ -1,7 +1,7 @@
 import os
 import json
 import threading
-from anthropic import Anthropic
+from groq import Groq
 from .router import detectar_agente, detectar_combinacion
 from .marketing import MARKETING_PROMPT
 from .ventas import VENTAS_PROMPT
@@ -9,10 +9,10 @@ from .desarrollador import DESARROLLADOR_PROMPT
 from .soporte import SOPORTE_PROMPT
 from .asistente import ASISTENTE_PROMPT
 from .disenador import DISENADOR_PROMPT
-from .herramientas import TOOLS, buscar_negocios_maps, buscar_en_web
 
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
+MODEL = "llama-3.3-70b-versatile"
 MAX_TOKENS = 4000
 
 AGENTES = {
@@ -24,81 +24,29 @@ AGENTES = {
     "disenador":     {"prompt": DISENADOR_PROMPT,      "nombre": "Diseñador Gráfico"},
 }
 
+def _llamar_groq(system_prompt: str, mensajes: list) -> str:
+    """Llama a Groq con el historial de mensajes y retorna el texto de respuesta."""
+    messages = [{"role": "system", "content": system_prompt}] + mensajes
 
-def _ejecutar_herramienta(nombre: str, params: dict) -> str:
-    """Despacha la llamada a la herramienta correcta y retorna JSON string."""
-    if nombre == "buscar_negocios_maps":
-        result = buscar_negocios_maps(
-            consulta=params.get("consulta", ""),
-            ubicacion=params.get("ubicacion", "Liberia, Guanacaste, Costa Rica"),
-            radio_metros=params.get("radio_metros", 5000),
-        )
-    elif nombre == "buscar_en_web":
-        result = buscar_en_web(consulta=params.get("consulta", ""))
-    else:
-        result = {"error": f"Herramienta desconocida: {nombre}"}
-    return json.dumps(result, ensure_ascii=False)
-
-
-def _bloque_a_dict(block) -> dict:
-    """Convierte un ContentBlock del SDK a dict serializable para la API."""
-    if block.type == "thinking":
-        # signature es obligatorio — Anthropic lo usa para verificar integridad
-        return {"type": "thinking", "thinking": block.thinking, "signature": block.signature}
-    if block.type == "text":
-        return {"type": "text", "text": block.text}
-    if block.type == "tool_use":
-        return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
-    return {}
-
-
-def _llamar_claude(system_prompt: str, mensajes: list) -> str:
-    """
-    Llama a Claude con herramientas habilitadas.
-    Ejecuta el loop de tool use hasta obtener la respuesta final.
-    """
-    messages = list(mensajes)
-
-    for _ in range(5):  # máximo 5 rondas de tool use por respuesta
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=MAX_TOKENS,
-            system=system_prompt,
-            tools=TOOLS,
-            messages=messages,
-        )
-
-        # Si no hay más herramientas que llamar, retornar el texto final
-        if response.stop_reason != "tool_use":
-            return next((b.text for b in response.content if b.type == "text"), "")
-
-        # Ejecutar cada herramienta solicitada
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                resultado = _ejecutar_herramienta(block.name, block.input)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": resultado,
-                })
-
-        # Agregar turno del asistente + resultados al historial
-        messages.append({"role": "assistant", "content": [_bloque_a_dict(b) for b in response.content]})
-        messages.append({"role": "user", "content": tool_results})
-
-    return next((b.text for b in response.content if b.type == "text"), "No pude completar la búsqueda.")
+    response = client.chat.completions.create(
+        model=MODEL,
+        max_tokens=MAX_TOKENS,
+        messages=messages
+    )
+    return response.choices[0].message.content or ""
 
 
 def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto") -> dict:
     if historial is None:
         historial = []
 
+    # Detectar combinación paralela
     if agente_forzado in ("auto", "asistente"):
         combinacion = detectar_combinacion(mensaje)
         if combinacion:
             return responder_paralelo(mensaje, combinacion)
 
+    # Agente único
     if agente_forzado and agente_forzado != "auto" and agente_forzado in AGENTES:
         agente_key = agente_forzado
     else:
@@ -106,7 +54,7 @@ def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto"
 
     agente = AGENTES[agente_key]
     mensajes = historial + [{"role": "user", "content": mensaje}]
-    texto = _llamar_claude(agente["prompt"], mensajes)
+    texto = _llamar_groq(agente["prompt"], mensajes)
 
     return {
         "agente": agente_key,
@@ -117,7 +65,7 @@ def responder(mensaje: str, historial: list = None, agente_forzado: str = "auto"
 
 
 def responder_paralelo(mensaje: str, combinacion: dict) -> dict:
-    """Múltiples agentes trabajan simultáneamente según la combinación detectada."""
+    """Múltiples agentes trabajan simultáneamente."""
     resultados = {}
 
     def trabajo_agente(agente_key: str):
@@ -126,10 +74,9 @@ def responder_paralelo(mensaje: str, combinacion: dict) -> dict:
             f"Estás trabajando en equipo con otros agentes de Vértice Digital en esta tarea: {mensaje}\n\n"
             f"Equipo activo: {combinacion['descripcion']}\n\n"
             f"Vos sos el {agente['nombre']}. Ejecutá tu parte completa sin esperar a los demás.\n"
-            f"Podés usar las herramientas de búsqueda si necesitás datos reales.\n"
             f"Sé específico, concreto y entregá tu parte lista para usar."
         )
-        texto = _llamar_claude(agente["prompt"], [{"role": "user", "content": contexto}])
+        texto = _llamar_groq(agente["prompt"], [{"role": "user", "content": contexto}])
         resultados[agente_key] = {"respuesta": texto, "nombre": agente["nombre"]}
 
     threads = []
