@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 sesiones = {}
 aprobaciones_pendientes = {}
+archivos_html = {}
 
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -108,7 +109,19 @@ HTML_CHAT = """
         const data = await res.json();
         document.getElementById('typing').textContent = '';
 
-        if (data.modo === 'paralelo' && data.resultados) {
+        if (data.html_file_id) {
+            const btn = document.createElement('a');
+            btn.href = '/descargar/' + data.html_file_id;
+            btn.download = 'vertice-digital.html';
+            btn.style.cssText = 'display:inline-block;margin-top:10px;padding:10px 20px;background:#6c63ff;color:#fff;border-radius:20px;text-decoration:none;font-size:13px;font-weight:500;';
+            btn.textContent = '⬇ Descargar index.html';
+            const msg = document.createElement('div');
+            msg.className = 'msg bot';
+            msg.innerHTML = '<div class="agente-tag">Lead Developer</div>✅ Página lista para descargar:';
+            msg.appendChild(btn);
+            document.getElementById('messages').appendChild(msg);
+            document.getElementById('messages').scrollTop = 999999;
+        } else if (data.modo === 'paralelo' && data.resultados) {
             const colores = ['bot', 'bot-paralelo', 'bot-paralelo2', 'bot-paralelo3'];
             Object.entries(data.resultados).forEach(([key, val], i) => {
                 agregarMensaje(val.respuesta, colores[i % colores.length], val.nombre);
@@ -174,7 +187,31 @@ def chat():
         telegram_enviado = True
 
     resultado["telegram_enviado"] = telegram_enviado
+
+    # Detectar si la respuesta contiene un archivo HTML para descargar
+    respuesta = resultado.get("respuesta", "")
+    if "===HTML_FILE===" in respuesta and "===END_HTML===" in respuesta:
+        inicio = respuesta.index("===HTML_FILE===") + len("===HTML_FILE===")
+        fin = respuesta.index("===END_HTML===")
+        html_code = respuesta[inicio:fin].strip()
+        file_id = str(uuid.uuid4())[:8].upper()
+        archivos_html[file_id] = html_code
+        resultado["html_file_id"] = file_id
+        resultado["respuesta"] = "✅ Página web lista. Hacé clic en el botón para descargar el archivo HTML."
+
     return jsonify(resultado)
+
+@app.route('/descargar/<file_id>')
+def descargar(file_id):
+    if file_id not in archivos_html:
+        return "Archivo no encontrado", 404
+    html = archivos_html[file_id]
+    from flask import Response
+    return Response(
+        html,
+        mimetype='text/html',
+        headers={'Content-Disposition': f'attachment; filename=vertice-digital.html'}
+    )
 
 @app.route('/chat/paralelo', methods=['POST'])
 def chat_paralelo():
